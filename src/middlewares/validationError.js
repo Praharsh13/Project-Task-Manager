@@ -6,7 +6,7 @@ export const validate=(req,res,next)=>{
     const errors=validationResult(req)
 
     if(errors.isEmpty()){
-        next()
+        return next()
     }
 
     const extractedError=[]
@@ -17,5 +17,5 @@ export const validate=(req,res,next)=>{
         })
     })
 
-    throw new ApiErrors(422,"Received data is not valid",extractedError)
+    res.status(400).json(new ApiErrors(422,"Received data is not valid",extractedError))
 }
