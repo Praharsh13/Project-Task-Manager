@@ -43,7 +43,7 @@ const userSchema=new Schema({
     forgotPasswordExpiry:{
         type:Date
     },
-    refreshRoken:{
+    refreshToken:{
         type:String
     } ,
     emailVerificationToken:{
