@@ -5,6 +5,7 @@ import { sendEmail ,emailVerificationMailContent,forgotpasswordMailContent} from
 import ApiResponse from "../utils/api-response.js";
 import crypto from "crypto"
 import { generateToken } from "../utils/generate-token.js";
+import { generateRefreshTokens } from "../utils/generate-refreshtoken.js";
 
 //Register the user
 const registerUser= asyncHandler(async (req,res,next)=>{
@@ -77,6 +78,7 @@ const verifyEmail=asyncHandler(async(req,res,next)=>{
     user.isEmailVerified=true
     user.emailVerificationToken=undefined
     user.emailVerificationExpiry=undefined
+    await user.save()
     res.status(200).json(new ApiResponse(200,{message:"User registered successfully"},user))
 })
 
@@ -88,15 +90,15 @@ const verifyEmail=asyncHandler(async(req,res,next)=>{
 const resendEmailVerification=asyncHandler(async(req,res,next)=>{
     const {email}=req.body
     if(!email){
-        res.status(400).json(ApiErrors(400,{message:"Email is required"}))
+        throw new ApiErrors(400,{message:"Email is required"})
     }
     const user=await User.findOne({email})
     if(!user){
-        res.status(400).json(ApiErrors(400,{message:"User not found, Please check the mail or register with us"}))
+        throw new ApiErrors(400,{message:"User not found, Please check the mail or register with us"})
     }
 
     if(user.isEmailVerified){
-        res.status(400).json(ApiErrors(400,{message:`${user.username} is alraedy verified. Please login to continue`}))
+        throw new ApiErrors(400,{message:`${user.username} is alraedy verified. Please login to continue`})
     }
 
     const {unhashedToken,hashedToken,tokenExpiry}=user.generateTemporaryToken()
@@ -114,7 +116,7 @@ const resendEmailVerification=asyncHandler(async(req,res,next)=>{
     }
     sendEmail(mailoptions)
 
-    res.status(200).json(ApiResponse(200,{message:"Verifivation mail sent again successgully"},user))
+    res.status(200).json(new ApiResponse(200,{message:"Verifivation mail sent again successgully"},user))
 
 })
 
@@ -131,17 +133,19 @@ const login=asyncHandler(async(req,res,next)=>{
     res.status(400).json(ApiErrors(400,{message:"Incorrect password"}))
    }
 
-   const refreshToken=user.generateRefreshToken()
+   const refreshToken=generateRefreshTokens(res,user)
    user.refreshToken=refreshToken
    await user.save()
-   generateToken()
+   generateToken(res,user,200,"User login successfully")
 
 
 })
 
+//user logout
+
 const logout=asyncHandler(async(req,res,next)=>{
     res.status(200).cookie("token","",{
-        expires:new Date(Date.now),
+        expires:new Date(Date.now()),
         httpOnly:true
     }).json(new ApiResponse(200,{message:"logout successfully"}))
 })
@@ -155,11 +159,11 @@ const forgotPassword=asyncHandler(async(req,res,next)=>{
     }
     const user=await User.findOne({email})
     if(!user){
-        res.status(400).json(new ApiErrors(400,{message:"User not found , please register to our site"}))
+        throw new ApiErrors(400,{message:"User not found , please register to our site"})
     }
 
     const {unhashedToken,hashedToken,tokenExpiry}=user.generateTemporaryToken()
-    const resetTokenUrl=`process.env.BASE_URL/api/v1/user/resetpassword/${unhashedToken}`
+    const resetTokenUrl=`http://localhost:8000/api/v1/user/resetpassword/${unhashedToken}`
     user.forgotPasswordToken=hashedToken
     user.forgotPasswordExpiry=tokenExpiry
     await user.save()
@@ -178,57 +182,75 @@ const forgotPassword=asyncHandler(async(req,res,next)=>{
 //Reset password controller
 const resetPassword=asyncHandler(async(req,res,next)=>{
     const {id}=req.params
-    const hashtoken=crypto.createHash("sha256").update(id).digest("hex");
-    const user= await User.findOne({forgotPasswordExpiry:hashtoken,
+   // console.log(id)
+    const forgotPasswordToken=crypto.createHash("sha256").update(id).digest("hex");
+    
+    const user= await User.findOne({forgotPasswordToken,
         forgotPasswordExpiry:{$gt:Date.now()}
     })
+    console.log(user)
     if(!user){
-        res.staus(400).json(new ApiErrors(400,{message:"Not able to find user"}))
+        throw new ApiErrors(400,{message:"Not able to find user"})
     }
+    const {password,confirmPassword}=req.body
 
-    if(req.body.password!=req.body.confirmPassword){
-        res.status(400).json(new ApiErrors(400,{message:"Password dont match"}))
+    if(password!=confirmPassword){
+        throw new ApiErrors(400,{message:"Password dont match"})
     }
-    user.password=req.body.password
+    user.password=password
     user.forgotPasswordExpiry=undefined
     user.forgotPasswordToken=undefined
-    user.save()
+    await user.save()
     res.status(200).json(new ApiResponse(200,{message:"Password updated successfully"},user))
 
 })
 //update password and user
 const updateUser=asyncHandler(async(req,res,next)=>{
-    if(req.body.password!=req.body.confirmPassword){
-        res.status(400).json(ApiResponse(400),{message:"Password does not match"})
+    const {password,confirmPassword}=req.body
+    if(password!=confirmPassword){
+       // console.log(req.body.password, req.body.confirmPassword)
+          throw new ApiErrors(400,"Password does not match")
     }
     const newdetail={
         username:req.body.username,
         email:req.body.email,
-        password:req.body.password
+        
     }
     const newfile=""
     if(req.files){
-        newfile=req.files.path
+        newfile=req.file.path
+        newdetail.avatar.localpath=newfile
 
     }
-    newdetail.avatar.localpath=newfile
+    
+    console.log(req.user)
+    
 
     const user=await User.findByIdAndUpdate(req.user.id,newdetail,{
         new:true,
         runValidators:true,
         useFindAndModify:false
     })
-    res.status(200).json(200,{message:"User updated successfully"},user)
+    if(password){
+        user.password=password
+        await user.save()
+    }
+    res.status(200).json(new ApiResponse(200,{message:"User updated successfully"},user))
 })
 //get user
-const getUser=asyncHandler(async(req,res,error)=>{
+const getUser=asyncHandler(async(req,res,next)=>{
     const id=req.user.id
-    const user=await User.findById({id})
-    res.status(200).json(ApiResponse(200,{message:"User Details"},user))
+    const user=await User.findById(id)
+    res.status(200).json(new ApiResponse(200,{message:"User Details"},user))
 })
 
 const generateAccessToken=asyncHandler(async(req,res,next)=>{
-    const user =req.user
+    const {refreshToken}=req.cookies
+    const user=await User.findOne({refreshToken})
+    if(!user){
+        throw new ApiErrors(400,{message:"please login again"})
+    }
+    generateToken(res,user,200,"Acces token regenrated successfully" )
 
     
 
@@ -238,4 +260,9 @@ export {
     verifyEmail,
     resendEmailVerification,
     login,
-    logout,forgotPassword,resetPassword,updateUser,getUser}
+    logout,
+    forgotPassword,
+    resetPassword,
+    updateUser,
+    getUser,
+    generateAccessToken}

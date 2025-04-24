@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { forgotPassword, getUser, login, logout, registerUser, resendEmailVerification, resetPassword, updateUser, verifyEmail } from "../controllers/auth.controllers.js";
+import { forgotPassword, generateAccessToken, getUser, login, logout, registerUser, resendEmailVerification, resetPassword, updateUser, verifyEmail } from "../controllers/auth.controllers.js";
 import { userRegistrationValidation, userLogin } from "../validators/index.js";
 import { validate } from "../middlewares/validationError.js";
 import { upload } from "../middlewares/multermiddleware.js";
@@ -15,7 +15,8 @@ router.route("/logout").post(logout)
 router.route("/forgetpassword").post(forgotPassword)
 router.route("/resetpassword/:id").post(resetPassword)
 router.route("/updateprofile").post(upload.single("avatar"),authUser,updateUser)
-router.route("/getuser").get(getUser)
+router.route("/getuser").get(authUser,getUser)
+router.route("/accesstoken").get(generateAccessToken)
 
 
 export default router;

@@ -1,6 +1,8 @@
 import express from "express"
 import healtRouter from "./routes/healthcheck.routes.js"
 import userRouter from "./routes/user.routes.js"
+import projectRouter from "./routes/project.routes.js"
+import projectmemberRouter from "./routes/projectMember.route.js"
 import cookieParser from "cookie-parser"
 import cors from "cors"
 
@@ -24,6 +26,8 @@ app.use(express.urlencoded({extended:true}))
 
 app.use("/api/v1/healthcheck",healtRouter)
 app.use("/api/v1/user",userRouter)
+app.use("/api/v1/project",projectRouter)
+app.use("/api/v1/projectmember",projectmemberRouter)
 
 
 

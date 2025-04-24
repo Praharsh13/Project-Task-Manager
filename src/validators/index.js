@@ -28,4 +28,14 @@ const userLogin=()=>{
     ]
 }
 
-export {userRegistrationValidation,userLogin}
+
+const projectadd=()=>{
+    return[
+        body("name")
+        .notEmpty().withMessage("Name feild cannot be empty"),
+        body("description")
+        .notEmpty().withMessage("Description cannot be empty")
+    ]
+}
+
+export {userRegistrationValidation,userLogin,projectadd}

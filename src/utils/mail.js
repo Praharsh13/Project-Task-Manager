@@ -13,7 +13,7 @@ const sendEmail=async (options)=>{
         }
     })
 
-
+    console.log("sending mail")
     const emailTextual=mailGenerator.generatePlaintext(options.mailgenContext)
     const emailHtml=mailGenerator.generate(options.mailgenContext)
 
